@@ -20,7 +20,9 @@ class AccountRegisterSerializer(serializers.ModelSerializer):
             'email', 'username', 'password'
         )
         extra_kwargs = {
-            'password': {'write_only': True}
+            'password': {'write_only': True, 'required': True},
+            'email': {'required': True},
+            'username': {'required': True}
         }
 
 
@@ -110,5 +112,3 @@ class OrderChatMessageListSerializer(serializers.ModelSerializer):
         fields = (
             'id', 'chat_id', 'message', 'is_read', 'sender_id'
         )
-
-
