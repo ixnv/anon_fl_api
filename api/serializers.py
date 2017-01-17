@@ -1,6 +1,7 @@
 from django.contrib.auth.models import User
 from rest_framework import serializers
 from api.models import Order, OrderAttachment, OrderCategory, OrderChat, OrderChatMessage, Tag, OrderTag
+from api.tasks import send_registration_email
 
 
 class AccountRegisterSerializer(serializers.ModelSerializer):
@@ -11,6 +12,8 @@ class AccountRegisterSerializer(serializers.ModelSerializer):
         )
         user.set_password(validated_data['password'])
         user.save()
+
+        send_registration_email.delay(validated_data['username'], validated_data['email'])
 
         return user
 

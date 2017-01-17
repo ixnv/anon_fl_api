@@ -124,5 +124,3 @@ class OrderChatAttachment(models.Model):
 
     class Meta:
         db_table = 'order_chat_attachment'
-
-

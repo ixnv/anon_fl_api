@@ -3,3 +3,5 @@ djangorestframework
 psycopg2
 django-debug-toolbar
 django-cors-headers
+celery
+redis
