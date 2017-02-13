@@ -53,8 +53,17 @@ REST_FRAMEWORK = {
     ),
 }
 
+REST_FRAMEWORK_EXTENSIONS = {
+    'DEFAULT_OBJECT_CACHE_KEY_FUNC':
+      'rest_framework_extensions.utils.default_object_cache_key_func',
+    'DEFAULT_LIST_CACHE_KEY_FUNC':
+      'rest_framework_extensions.utils.default_list_cache_key_func',
+}
+
 MIDDLEWARE = [
     'debug_toolbar.middleware.DebugToolbarMiddleware',
+    'django.middleware.cache.UpdateCacheMiddleware',
+    'django.middleware.cache.FetchFromCacheMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',
@@ -101,6 +110,15 @@ DATABASES = {
     }
 }
 
+# cache
+CACHES = {
+    'default': {
+        'BACKEND': 'redis_cache.RedisCache',
+        'LOCATION': '/var/run/redis/redis.sock',
+    }
+}
+
+SESSION_ENGINE = 'django.contrib.sessions.backends.cached_db'
 
 # Password validation
 # https://docs.djangoproject.com/en/1.10/ref/settings/#auth-password-validators
@@ -221,6 +239,8 @@ LOGGING = {
 }
 
 CORS_ORIGIN_ALLOW_ALL = True
+
+NOTIFY_URL = 'http://localhost:8882'
 
 if DEBUG:
     import logging

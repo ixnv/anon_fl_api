@@ -11,4 +11,10 @@ class IsSuperUserOrReadOnly(permissions.BasePermission):
 
 class IsOrderChatParticipant(permissions.BasePermission):
     def has_object_permission(self, request, view, obj):
+        print(obj)
         return request.user in [obj.sender_id, obj.recipient_id]
+
+
+class IsOrderOwner(permissions.BasePermission):
+    def has_object_permission(self, request, view, obj):
+        return request.user == obj.customer

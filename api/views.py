@@ -1,21 +1,26 @@
-from django.core.exceptions import ObjectDoesNotExist
 from django.shortcuts import get_object_or_404
 from rest_framework import generics
 from rest_framework import permissions
+from rest_framework import status
 from rest_framework import viewsets
 from rest_framework.authentication import TokenAuthentication
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.exceptions import PermissionDenied, NotAcceptable, NotFound, ParseError
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework.authtoken.models import Token
 from rest_framework.authtoken.serializers import AuthTokenSerializer
 from rest_framework.views import APIView
 
-from api.permissions import IsSuperUserOrReadOnly, IsOrderChatParticipant
+from anon_fl import notify_api
+from anon_fl.paginators import EnlargedResultsSetPagination
+from api import models
+from api.permissions import IsSuperUserOrReadOnly, IsOrderChatParticipant, IsOrderOwner
 from api.serializers import OrderListSerializer, OrderCreateSerializer, OrderAttachmentSerializer, \
     OrderCategorySerializer, \
     OrderDetailSerializer, OrderChatDetailSerializer, OrderChatMessageListSerializer, \
-    AccountRegisterSerializer, TagSerializer
-from api.models import Order, OrderAttachment, OrderCategory, OrderChat, OrderChatMessage, Tag, OrderTag
+    AccountRegisterSerializer, TagSerializer, OrderApplicationListSerializer
+from api.models import Order, OrderAttachment, OrderCategory, OrderChat, OrderChatMessage, Tag, OrderTag, \
+    OrderApplication
 
 
 class AccountRegistrationView(generics.CreateAPIView):
@@ -31,22 +36,32 @@ class AccountLoginView(APIView):
         user = serializer.validated_data['user']
         token, created = Token.objects.get_or_create(user=user)
         return Response({
-            'token': token.key
+            'token': token.key,
+            'email': user.email,
+            'username': user.username,
+            'id': user.id
         })
 
 
 class OrderViewSet(viewsets.ModelViewSet):
+    authentication_classes = (TokenAuthentication,)
+
     def get_queryset(self):
         category = self.request.query_params.get('category', None)
-        if category and category.isdigit():
-            return Order.objects.filter(category=category).select_related('category')
+        queryset = Order.objects.order_by('-updated_at') \
+            .select_related('category').prefetch_related('order_tag')
+
+        filter = {}
+
+        # TODO: extract to ModelManager
+        if category:
+            filter['category__in'] = category.split(',')
 
         tag_id = self.request.query_params.get('tag_id', None)
         if tag_id and tag_id.isdigit():
-            return Order.objects.filter(order_tag__tag_id=tag_id)\
-                .select_related('category').prefetch_related('order_tag')
+            filter['order_tag__tag_id'] = tag_id
 
-        return Order.objects.select_related('category').prefetch_related('order_tag')
+        return queryset.filter(**filter)
 
     def get_serializer_class(self):
         serializers = {
@@ -59,31 +74,52 @@ class OrderViewSet(viewsets.ModelViewSet):
 
         return serializers[self.action]
 
+    def get_permissions(self):
+        if self.action == 'create':
+            return (IsAuthenticated(),)
+
+        if self.action in ['update', 'partial_update']:
+            return (IsOrderOwner(),)
+
+        if self.action == 'delete':
+            return (IsSuperUserOrReadOnly(),)
+
+        return (AllowAny(),)
+
     def perform_create(self, serializer):
         serializer.save(customer=self.request.user)
 
 
-class TagCreateView(APIView):
-    permission_classes = (IsAuthenticated,)
-    authentication_classes = (TokenAuthentication,)
+class TagViewSet(viewsets.ModelViewSet):
     serializer_class = TagSerializer
+    queryset = Tag.objects.all()
+    authentication_classes = (TokenAuthentication,)
 
-    def post(self, request):
+    def get_permissions(self):
+        if self.action == 'create':
+            return (IsAuthenticated(),)
+        if self.action in ['update', 'partial_update', 'delete']:
+            return (IsSuperUserOrReadOnly(),)
+
+        return (AllowAny(),)
+
+    def get_queryset(self):
+        if self.action == 'list':
+            query = self.request.query_params.get('q')
+            if query is not None:
+                return Tag.objects.filter(tag__contains=query)
+
+        return self.queryset
+
+    def create(self, request, *args, **kwargs):
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
         tag, created = Tag.objects.get_or_create(created_by=request.user, tag=serializer.validated_data['tag'])
 
         return Response({
+            'id': tag.id,
             'tag': tag.tag
         })
-
-
-class OrdersByTagListView(generics.ListAPIView):
-    serializer_class = OrderListSerializer
-
-    def get_queryset(self):
-
-        return OrderTag.objects.select_related('order', 'tag')
 
 
 class OrderAttachmentViewSet(viewsets.ModelViewSet):
@@ -117,6 +153,8 @@ class OrderCategoryViewSet(viewsets.ModelViewSet):
 
 
 class OrderCustomerListViewSet(viewsets.ModelViewSet):
+    authentication_classes = (TokenAuthentication,)
+    permission_classes = (IsAuthenticated,)
     serializer_class = OrderListSerializer
 
     def get_queryset(self):
@@ -124,6 +162,8 @@ class OrderCustomerListViewSet(viewsets.ModelViewSet):
 
 
 class OrderContractorListViewSet(viewsets.ModelViewSet):
+    permission_classes = (IsAuthenticated,)
+    authentication_classes = (TokenAuthentication,)
     serializer_class = OrderListSerializer
 
     def get_queryset(self):
@@ -131,6 +171,7 @@ class OrderContractorListViewSet(viewsets.ModelViewSet):
 
 
 class OrderChatDetailViewSet(viewsets.ModelViewSet):
+    authentication_classes = (TokenAuthentication,)
     queryset = OrderChat.objects.all()
     serializer_class = OrderChatDetailSerializer
     permissions_classes = (IsOrderChatParticipant,)
@@ -143,15 +184,118 @@ class OrderChatDetailViewSet(viewsets.ModelViewSet):
 
 
 class OrderChatMessageListViewSet(viewsets.ModelViewSet):
-    queryset = OrderChatMessage.objects.all()
+    authentication_classes = (TokenAuthentication,)
     serializer_class = OrderChatMessageListSerializer
     permissions_classes = (IsOrderChatParticipant,)
+    pagination_class = EnlargedResultsSetPagination
+
+    def get_queryset(self):
+        order_id = self.kwargs['order_id']
+        chat = get_object_or_404(OrderChat.objects.all(), order_id=order_id)
+        return OrderChatMessage.objects.filter(chat_id=chat.id).order_by('-id')
 
     def perform_create(self, serializer):
         order_id = self.kwargs['order_id']
-        try:
-            order_chat = OrderChat.objects.get(order=order_id)
-        except ObjectDoesNotExist:
-            order_chat = OrderChat.objects.create(order_id=order_id)
+        sender_id = self.request.user.id
 
-        serializer.save(chat_id=order_chat.id, sender_id=self.request.user.pk)
+        order = Order.objects.get(id=order_id)
+        if sender_id not in [order.customer_id, order.contractor_id]:
+            raise PermissionDenied
+
+        order_chat = OrderChat.objects.get(order=order_id)
+        serializer.save(chat_id=order_chat.id, sender_id=sender_id)
+
+        order_chat.messages_count += 1
+        order_chat.save()
+
+        receiver = list(filter(lambda _id: _id != sender_id, [order.contractor_id, order.customer_id]))
+        notify_api.notify(receiver, notify_api.ORDER_CHAT_NEW_MESSAGE, serializer.data)
+
+
+class OrderApplicationListViewSet(viewsets.ModelViewSet):
+    authentication_classes = (TokenAuthentication,)
+    serializer_class = OrderApplicationListSerializer
+    queryset = OrderApplication.objects.all()
+
+    def create(self, request, *args, **kwargs):
+        """
+        Customer applies for order
+        """
+        order_id = kwargs['order_id']
+        applicant_id = self.request.user.id
+        order = Order.objects.filter(id=order_id).get()
+
+        if order.customer_id == applicant_id:
+            return Response({'application': 'Cannot apply to own order'}, status=status.HTTP_409_CONFLICT)
+
+        if not order:
+            return Response({'order': 'Order not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if order.contractor_id is not None:
+            return Response({'order': 'Order already has contractor. Applications are no longer accepted'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        application, created = OrderApplication.objects.get_or_create(order_id=order_id, applicant_id=applicant_id)
+        if not created:
+            application.status = models.ApplicationStatus.NEW.value
+            application.save()
+
+        if application:
+            return Response(OrderApplicationListSerializer(application).data)
+
+        return ParseError
+
+    def destroy(self, request, *args, **kwargs):
+        """
+        Customer withdraws application
+        """
+        order_id = kwargs['order_id']
+        applicant_id = self.request.user.id
+
+        try:
+            application = OrderApplication.objects.get(applicant_id=applicant_id, order_id=order_id)
+        except models.OrderApplication.DoesNotExist:
+            raise NotFound
+
+        if application.status == models.ApplicationStatus.ACCEPTED.value:
+            raise NotAcceptable
+
+        application.status = models.ApplicationStatus.WITHDRAWN.value
+        application.save()
+
+        return Response(OrderApplicationListSerializer(application).data)
+
+
+class OrderApplicationStatusDetailView(generics.UpdateAPIView, generics.DestroyAPIView):
+    authentication_classes = (TokenAuthentication,)
+
+    def update(self, request, *args, **kwargs):
+        """
+        Customer accepts or declines application
+        """
+        order_id = kwargs['order_id']
+        application_id = kwargs['pk']
+        application_status = request.data.get('status')
+
+        permitted_statuses = [models.ApplicationStatus.ACCEPTED.value, models.ApplicationStatus.DECLINED.value]
+        order = Order.objects.get(id=order_id)
+        if order.customer_id != self.request.user.pk or application_status not in permitted_statuses:
+            raise PermissionDenied
+
+        application = OrderApplication.objects.get(id=application_id)
+
+        if application_status in [models.ApplicationStatus.ACCEPTED.value, models.ApplicationStatus.DECLINED.value]:
+            if order.contractor_id is not None:
+                raise ParseError
+
+        if application_status == models.ApplicationStatus.ACCEPTED.value:
+            order.status = models.OrderStatus.IN_PROCESS.value
+            order.contractor_id = application.applicant_id
+            order.save()
+
+            OrderChat.objects.create(order_id=order_id)
+
+        application.status = application_status
+        application.save()
+
+        return Response(OrderApplicationListSerializer(application).data)

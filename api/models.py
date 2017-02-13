@@ -1,12 +1,12 @@
+from django.contrib.postgres.fields import ArrayField
 from django.db import models
+from enum import Enum
 
-ORDER_STATUS_CHOICES = (
-    (0, 'NEW'),
-    (1, 'PUBLISHED'),
-    (2, 'IN_PROCESS'),
-    (3, 'COMPLETED_WITH_SUCCESS'),
-    (4, 'COMPLETED_WITH_FAIL')
-)
+OrderStatus = Enum('OrderStatus', ('NEW', 'PUBLISHED', 'IN_PROCESS', 'COMPLETED_WITH_SUCCESS', 'COMPLETED_WITH_FAIL'), start=0)
+ORDER_STATUS_CHOICES = tuple(map(lambda x: (x.value, x.name), OrderStatus))
+
+ApplicationStatus = Enum('Application', ('NEW', 'ACCEPTED', 'DECLINED', 'WITHDRAWN'), start=0)
+APPLICATION_STATUS_CHOICES = tuple(map(lambda x: (x.value, x.name), ApplicationStatus))
 
 
 class OrderCategory(models.Model):
@@ -38,6 +38,7 @@ class Order(models.Model):
     category = models.ForeignKey(OrderCategory, related_name='order_category')
     title = models.CharField(max_length=100)
     description = models.TextField()
+    price = models.IntegerField()
     customer = models.ForeignKey('auth.User', related_name='order_customer', on_delete=models.CASCADE)
     contractor = models.ForeignKey('auth.User', related_name='order_contractor', null=True)
     status = models.IntegerField(choices=ORDER_STATUS_CHOICES, default=0)
@@ -79,9 +80,11 @@ class OrderApplication(models.Model):
     """
     Отклик на заказ
     """
-    order = models.ForeignKey(Order, on_delete=models.CASCADE)
-    created_at = models.DateTimeField(auto_now_add=True)
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='order_application')
     applicant = models.ForeignKey('auth.User', on_delete=models.CASCADE)
+    status = models.IntegerField(choices=APPLICATION_STATUS_CHOICES, default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = 'order_application'
@@ -92,11 +95,7 @@ class OrderChat(models.Model):
     Чат заказчика с исполнителем
     """
     order = models.ForeignKey(Order, on_delete=models.CASCADE)
-    contractor_last_read_at = models.DateTimeField(null=True)
-    customer_last_read_at = models.DateTimeField(null=True)
     messages_count = models.IntegerField(default=0)
-    contractor_new_messages_count = models.IntegerField(default=0)
-    customer_new_messages_count = models.IntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -109,6 +108,7 @@ class OrderChatMessage(models.Model):
     message = models.TextField()
     sender = models.ForeignKey('auth.User', related_name='order_chat_sender')
     is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         db_table = 'order_chat_message'
@@ -124,3 +124,12 @@ class OrderChatAttachment(models.Model):
 
     class Meta:
         db_table = 'order_chat_attachment'
+
+
+class UserNotificationsSettings(models.Model):
+    user = models.ForeignKey('auth.User', related_name='user')
+    categories = ArrayField(models.IntegerField())
+    notify_on_email = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = 'user_notification_settings'

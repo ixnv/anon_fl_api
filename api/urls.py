@@ -2,7 +2,7 @@ from django.conf.urls import url
 
 from api.views import OrderViewSet, OrderAttachmentViewSet, OrderCategoryViewSet, OrderContractorListViewSet, \
     OrderCustomerListViewSet, OrderChatMessageListViewSet, OrderChatDetailViewSet, AccountRegistrationView, \
-    AccountLoginView, TagCreateView, OrdersByTagListView
+    AccountLoginView, OrderApplicationListViewSet, TagViewSet, OrderApplicationStatusDetailView
 
 order_list = OrderViewSet.as_view({
     'get': 'list',
@@ -57,6 +57,15 @@ order_chat_messages_list = OrderChatMessageListViewSet.as_view({
     'post': 'create'
 })
 
+order_application_list = OrderApplicationListViewSet.as_view({
+    'post': 'create',
+    'delete': 'destroy'
+})
+
+tags_list = TagViewSet.as_view({
+    'get': 'list',
+    'post': 'create'
+})
 
 urlpatterns = [
     url(r'^account/register', AccountRegistrationView.as_view(), name='account-register'),
@@ -67,11 +76,14 @@ urlpatterns = [
     url(r'^orders/contractor/$', order_contractor_list, name='order-contractor-list'),
     url(r'^orders/customer/$', order_customer_list, name='order-customer-list'),
 
-    url(r'^orders/tags/$', TagCreateView.as_view(), name='tag-create'),
-    url(r'^orders/tags/(?P<pk>[0-9]+)$', OrdersByTagListView.as_view(), name='orders-by-tag-list'),
+    url(r'^tags/$', tags_list, name='tag-list'),
+    url(r'^tags/search$', tags_list, name='tag-search'),
 
     url(r'^orders/categories/$', order_category_list, name='order-category-list'),
     url(r'^orders/categories/(?P<pk>[0-9]+)/$', order_category_detail, name='order-category-detail'),
+
+    url(r'^orders/(?P<order_id>[0-9]+)/applications/$', order_application_list, name='order-application-list'),
+    url(r'^orders/(?P<order_id>[0-9]+)/applications/(?P<pk>[0-9]+)/status/$', OrderApplicationStatusDetailView.as_view(), name='order-application-status-detail'),
 
     url(r'^orders/(?P<order_id>[0-9]+)/chat/$', order_chat_detail, name='order-chat-list'),
     url(r'^orders/(?P<order_id>[0-9]+)/chat/messages/$', order_chat_messages_list, name='order-chat-messages-list')
