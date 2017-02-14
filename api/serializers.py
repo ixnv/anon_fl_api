@@ -4,7 +4,7 @@ from rest_framework.authtoken.models import Token
 
 from api import models
 from api.models import Order, OrderAttachment, OrderCategory, OrderChat, OrderChatMessage, Tag, OrderTag, \
-    OrderApplication
+    OrderApplication, UserNotificationsSettings
 from api.tasks import send_registration_email
 
 
@@ -29,8 +29,9 @@ class AccountRegisterSerializer(serializers.ModelSerializer):
 
         Token.objects.get_or_create(user=user)
 
+        # TODO: move this to signals
         send_registration_email.delay(validated_data['username'], validated_data['email'])
-
+        UserNotificationsSettings.objects.create()
         return user
 
     def get_token(self, instance):
@@ -217,4 +218,12 @@ class OrderApplicationListSerializer(serializers.ModelSerializer):
         model = OrderApplication
         fields = (
             'id', 'order_id', 'applicant_id', 'created_at', 'status', 'applicant'
+        )
+
+
+class UserNotificationsSettingsDetailSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserNotificationsSettings
+        fields = (
+            'categories', 'notify_on_email'
         )

@@ -128,8 +128,8 @@ class OrderChatAttachment(models.Model):
 
 class UserNotificationsSettings(models.Model):
     user = models.ForeignKey('auth.User', related_name='user')
-    categories = ArrayField(models.IntegerField())
-    notify_on_email = models.BooleanField(default=True)
+    categories = ArrayField(models.IntegerField(), default=[])
+    notify_on_email = models.BooleanField(default=False)
 
     class Meta:
         db_table = 'user_notification_settings'

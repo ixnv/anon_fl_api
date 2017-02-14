@@ -18,9 +18,9 @@ from api.permissions import IsSuperUserOrReadOnly, IsOrderChatParticipant, IsOrd
 from api.serializers import OrderListSerializer, OrderCreateSerializer, OrderAttachmentSerializer, \
     OrderCategorySerializer, \
     OrderDetailSerializer, OrderChatDetailSerializer, OrderChatMessageListSerializer, \
-    AccountRegisterSerializer, TagSerializer, OrderApplicationListSerializer
+    AccountRegisterSerializer, TagSerializer, OrderApplicationListSerializer, UserNotificationsSettingsDetailSerializer
 from api.models import Order, OrderAttachment, OrderCategory, OrderChat, OrderChatMessage, Tag, OrderTag, \
-    OrderApplication
+    OrderApplication, UserNotificationsSettings
 
 
 class AccountRegistrationView(generics.CreateAPIView):
@@ -299,3 +299,22 @@ class OrderApplicationStatusDetailView(generics.UpdateAPIView, generics.DestroyA
         application.save()
 
         return Response(OrderApplicationListSerializer(application).data)
+
+
+class UserNotificationsSettingsViewSet(viewsets.ModelViewSet):
+    authentication_classes = (TokenAuthentication,)
+    serializer_class = UserNotificationsSettingsDetailSerializer
+    queryset = UserNotificationsSettings.objects.all()
+
+    def retrieve(self, request, *args, **kwargs):
+        settings = get_object_or_404(self.queryset, user_id=request.user.id)
+        serializer = self.serializer_class(settings)
+        return Response(serializer.data)
+
+    def update(self, request, *args, **kwargs):
+        settings = get_object_or_404(self.queryset, user_id=request.user.id)
+        serializer = self.serializer_class(settings, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

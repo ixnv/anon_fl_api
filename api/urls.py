@@ -2,7 +2,8 @@ from django.conf.urls import url
 
 from api.views import OrderViewSet, OrderAttachmentViewSet, OrderCategoryViewSet, OrderContractorListViewSet, \
     OrderCustomerListViewSet, OrderChatMessageListViewSet, OrderChatDetailViewSet, AccountRegistrationView, \
-    AccountLoginView, OrderApplicationListViewSet, TagViewSet, OrderApplicationStatusDetailView
+    AccountLoginView, OrderApplicationListViewSet, TagViewSet, OrderApplicationStatusDetailView, \
+    UserNotificationsSettingsViewSet
 
 order_list = OrderViewSet.as_view({
     'get': 'list',
@@ -67,9 +68,16 @@ tags_list = TagViewSet.as_view({
     'post': 'create'
 })
 
+user_notifications_settings_detail = UserNotificationsSettingsViewSet.as_view({
+    'get': 'retrieve',
+    'put': 'update'
+})
+
 urlpatterns = [
     url(r'^account/register', AccountRegistrationView.as_view(), name='account-register'),
     url(r'^account/login', AccountLoginView.as_view(), name='account-login'),
+
+    url(r'^account/settings/notifications', user_notifications_settings_detail, name='account-settings-notifications'),
 
     url(r'^orders/$', order_list, name='order-list'),
     url(r'^orders/(?P<pk>[0-9]+)/$', order_detail, name='order-detail'),
