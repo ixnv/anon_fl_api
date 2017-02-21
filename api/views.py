@@ -174,7 +174,7 @@ class OrderChatDetailViewSet(viewsets.ModelViewSet):
     authentication_classes = (TokenAuthentication,)
     queryset = OrderChat.objects.all()
     serializer_class = OrderChatDetailSerializer
-    permissions_classes = (IsOrderChatParticipant,)
+    permissions_classes = (IsAuthenticated, IsOrderChatParticipant,)
 
     def retrieve(self, request, *args, **kwargs):
         queryset = OrderChat.objects.all()
@@ -186,11 +186,16 @@ class OrderChatDetailViewSet(viewsets.ModelViewSet):
 class OrderChatMessageListViewSet(viewsets.ModelViewSet):
     authentication_classes = (TokenAuthentication,)
     serializer_class = OrderChatMessageListSerializer
-    permissions_classes = (IsOrderChatParticipant,)
+    permissions_classes = (IsAuthenticated, IsOrderChatParticipant,)
     pagination_class = EnlargedResultsSetPagination
 
     def get_queryset(self):
         order_id = self.kwargs['order_id']
+
+        order = Order.objects.get(id=order_id)
+        if self.request.user.id not in [order.customer_id, order.contractor_id]:
+            raise PermissionDenied
+
         chat = get_object_or_404(OrderChat.objects.all(), order_id=order_id)
         return OrderChatMessage.objects.filter(chat_id=chat.id).order_by('-id')
 
@@ -208,14 +213,23 @@ class OrderChatMessageListViewSet(viewsets.ModelViewSet):
         order_chat.messages_count += 1
         order_chat.save()
 
+        data = serializer.data
+        data['order_title'], data['order_id'] = order.title, order.id
         receiver = list(filter(lambda _id: _id != sender_id, [order.contractor_id, order.customer_id]))
-        notify_api.notify(receiver, notify_api.ORDER_CHAT_NEW_MESSAGE, serializer.data)
+        notify_api.notify(receiver, order_chat.id, notify_api.ORDER_CHAT_NEW_MESSAGE, data)
+
+    def read(self, request, *args, **kwargs):
+        order_id = kwargs['order_id']
+        order_chat = OrderChat.objects.get(order_id=order_id)
+        OrderChatMessage.objects.filter(chat_id=order_chat.id).update(is_read=True)
+        return Response({'status': 'ok'})
 
 
 class OrderApplicationListViewSet(viewsets.ModelViewSet):
     authentication_classes = (TokenAuthentication,)
     serializer_class = OrderApplicationListSerializer
     queryset = OrderApplication.objects.all()
+    permission_classes = (IsAuthenticated, )
 
     def create(self, request, *args, **kwargs):
         """
@@ -236,14 +250,14 @@ class OrderApplicationListViewSet(viewsets.ModelViewSet):
                             status=status.HTTP_400_BAD_REQUEST)
 
         application, created = OrderApplication.objects.get_or_create(order_id=order_id, applicant_id=applicant_id)
-        if not created:
-            application.status = models.ApplicationStatus.NEW.value
-            application.save()
 
-        if application:
-            return Response(OrderApplicationListSerializer(application).data)
+        if not application:
+            return ParseError
 
-        return ParseError
+        serialized = OrderApplicationListSerializer(application).data
+        serialized['order_title'] = order.title
+        notify_api.notify([order.customer_id], order.id, notify_api.ORDER_APPLICATION_REQUEST_RECEIVED, serialized)
+        return Response(serialized)
 
     def destroy(self, request, *args, **kwargs):
         """
@@ -279,14 +293,12 @@ class OrderApplicationStatusDetailView(generics.UpdateAPIView, generics.DestroyA
 
         permitted_statuses = [models.ApplicationStatus.ACCEPTED.value, models.ApplicationStatus.DECLINED.value]
         order = Order.objects.get(id=order_id)
-        if order.customer_id != self.request.user.pk or application_status not in permitted_statuses:
+        if order.customer_id != self.request.user.pk \
+                or application_status not in permitted_statuses \
+                or order.contractor_id is not None:
             raise PermissionDenied
 
         application = OrderApplication.objects.get(id=application_id)
-
-        if application_status in [models.ApplicationStatus.ACCEPTED.value, models.ApplicationStatus.DECLINED.value]:
-            if order.contractor_id is not None:
-                raise ParseError
 
         if application_status == models.ApplicationStatus.ACCEPTED.value:
             order.status = models.OrderStatus.IN_PROCESS.value
@@ -298,7 +310,17 @@ class OrderApplicationStatusDetailView(generics.UpdateAPIView, generics.DestroyA
         application.status = application_status
         application.save()
 
-        return Response(OrderApplicationListSerializer(application).data)
+        if application.status == models.ApplicationStatus.ACCEPTED.value:
+            key = notify_api.ORDER_APPLICATION_APPROVED
+        else:
+            key = notify_api.ORDER_APPLICATION_DECLINED
+
+        serialized = OrderApplicationListSerializer(application).data
+        serialized['order_title'] = order.title
+
+        notify_api.notify([application.applicant_id], order.id, key, serialized)
+
+        return Response(serialized)
 
 
 class UserNotificationsSettingsViewSet(viewsets.ModelViewSet):
@@ -318,3 +340,11 @@ class UserNotificationsSettingsViewSet(viewsets.ModelViewSet):
             serializer.save()
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class NotificationsMarkAsRead(APIView):
+    authentication_classes = (TokenAuthentication,)
+
+    def post(self, request):
+        notify_api.read_notifications(request.user.id)
+        return Response({'status': 'ok'})

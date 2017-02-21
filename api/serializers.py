@@ -31,7 +31,7 @@ class AccountRegisterSerializer(serializers.ModelSerializer):
 
         # TODO: move this to signals
         send_registration_email.delay(validated_data['username'], validated_data['email'])
-        UserNotificationsSettings.objects.create()
+        UserNotificationsSettings.objects.create(user_id=user.id)
         return user
 
     def get_token(self, instance):

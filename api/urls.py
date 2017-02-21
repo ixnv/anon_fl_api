@@ -3,7 +3,7 @@ from django.conf.urls import url
 from api.views import OrderViewSet, OrderAttachmentViewSet, OrderCategoryViewSet, OrderContractorListViewSet, \
     OrderCustomerListViewSet, OrderChatMessageListViewSet, OrderChatDetailViewSet, AccountRegistrationView, \
     AccountLoginView, OrderApplicationListViewSet, TagViewSet, OrderApplicationStatusDetailView, \
-    UserNotificationsSettingsViewSet
+    UserNotificationsSettingsViewSet, NotificationsMarkAsRead
 
 order_list = OrderViewSet.as_view({
     'get': 'list',
@@ -55,7 +55,8 @@ order_chat_detail = OrderChatDetailViewSet.as_view({
 
 order_chat_messages_list = OrderChatMessageListViewSet.as_view({
     'get': 'list',
-    'post': 'create'
+    'post': 'create',
+    'put': 'read'
 })
 
 order_application_list = OrderApplicationListViewSet.as_view({
@@ -94,5 +95,7 @@ urlpatterns = [
     url(r'^orders/(?P<order_id>[0-9]+)/applications/(?P<pk>[0-9]+)/status/$', OrderApplicationStatusDetailView.as_view(), name='order-application-status-detail'),
 
     url(r'^orders/(?P<order_id>[0-9]+)/chat/$', order_chat_detail, name='order-chat-list'),
-    url(r'^orders/(?P<order_id>[0-9]+)/chat/messages/$', order_chat_messages_list, name='order-chat-messages-list')
+    url(r'^orders/(?P<order_id>[0-9]+)/chat/messages/$', order_chat_messages_list, name='order-chat-messages-list'),
+
+    url(r'notifications/mark_as_read', NotificationsMarkAsRead.as_view(), name='notifications-mark-as-read')
 ]
