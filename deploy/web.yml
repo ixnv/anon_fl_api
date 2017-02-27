@@ -1,0 +1,16 @@
+---
+- hosts: all
+  user: vagrant
+
+  tasks:
+    - name: Update apt cache
+      apt: update_cache=yes
+      sudo: yes
+
+    - name: Install required packages
+      apt: name={{ item }}
+      sudo: yes
+      with_items:
+        - docker
+
+    - name: Docker-compose up

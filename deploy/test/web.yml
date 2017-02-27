@@ -1,0 +1,61 @@
+---
+- hosts: all
+  user: vagrant
+
+  tasks:
+    - name: Update apt cache
+      apt: update_cache=yes
+      sudo: yes
+      tags:
+        - init
+
+    - name: Install required packages
+      apt: name={{ item }}
+      sudo: yes
+      with_items:
+        - curl
+        - apt-transport-https
+        - ca-certificates
+        - software-properties-common
+      tags:
+        - init
+
+    - name: Install docker
+      shell: "curl -fsSL https://apt.dockerproject.org/gpg | sudo apt-key add - && sudo add-apt-repository \"deb https://apt.dockerproject.org/repo/ debian-$(lsb_release -cs) main\" && sudo apt-get update && sudo apt-get install docker-engine"
+
+    - name: Check Docker compose bin file presence
+      stat: path=/usr/local/bin/docker-compose
+      register: dockercompose
+
+    - name: Install docker compose
+      sudo: yes
+      shell: curl -L https://github.com/docker/compose/releases/download/1.9.0/docker-compose-`uname -s`-`uname -m` > /usr/local/bin/docker-compose
+      when: dockercompose.stat.exists == false
+      tags:
+        - dockercompose
+
+    - name: Apply executable permission to docker-compose
+      sudo: yes
+      file: path=/usr/local/bin/docker-compose mode="u+x,g+x"
+      tags:
+        - dockercompose
+
+    # for our purposes it's ok
+    - name: Chown docker-compose to current user
+      shell: "sudo chown ${USER}:${USER} /usr/local/bin/docker-compose"
+      tags:
+        - dockercompose
+
+    - name: Upload src
+      synchronize:
+        src: ~/projects/final
+        dest: ~/
+        rsync_opts:
+          - "--exclude={.git,env}"    
+      tags:
+        - copysrc
+
+    - name: Docker-compose up
+      shell: cd ~/final && docker-compose up --build
+      tags:
+        - docker

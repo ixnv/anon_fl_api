@@ -1,0 +1,2 @@
+[web]
+172.20.20.10 ansible_ssh_port=22 ansible_ssh_user=vagrant ansible_ssh_private_key_file=~/projects/consul/demo/vagrant-cluster/.vagrant/machines/n1/virtualbox/private_key
