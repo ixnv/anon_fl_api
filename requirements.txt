@@ -8,3 +8,6 @@ redis
 django-redis-cache
 drf-extensions
 requests
+gunicorn
+pyjwt
+python-dotenv

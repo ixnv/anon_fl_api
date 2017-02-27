@@ -12,7 +12,13 @@ https://docs.djangoproject.com/en/1.10/ref/settings/
 
 import os
 
+from os.path import join, dirname
+from dotenv import load_dotenv
+
 from kombu import Exchange, Queue
+
+dotenv_path = join(dirname(__file__), '.env')
+load_dotenv(dotenv_path)
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -25,9 +31,9 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SECRET_KEY = 'an2(+o1=2sr9nrv!=jb0zd6lyg7%488qod4-aht*!0kc)-qf0#'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('DEBUG', False)
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['anon.fl', 'localhost']
 
 
 # Application definition
@@ -102,11 +108,11 @@ WSGI_APPLICATION = 'anon_fl.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql_psycopg2',
-        'NAME': 'anon_fl',
-        'USER': 'anon_fl',
-        'PASSWORD': 'anon_fl',
-        'HOST': '',
-        'PORT': ''
+        'NAME': os.environ.get('DB_NAME', 'anon_fl'),
+        'USER': os.environ.get('DB_USER', 'postgres'),
+        'PASSWORD': os.environ.get('DB_PASSWORD', 'postgres'),
+        'HOST': os.environ.get('DB_HOST', 'db'),
+        'PORT': os.environ.get('DB_PORT', '5432')
     }
 }
 
@@ -114,7 +120,7 @@ DATABASES = {
 CACHES = {
     'default': {
         'BACKEND': 'redis_cache.RedisCache',
-        'LOCATION': '/var/run/redis/redis.sock',
+        'LOCATION': os.environ.get('REDIS_HOST', 'redis') + ':' + os.environ.get('REDIS_PORT', '6379'),
     }
 }
 
@@ -157,19 +163,20 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/1.10/howto/static-files/
 
 STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 
 INTERNAL_IPS = [
     '127.0.0.1'
 ]
 
-RABBIT_HOSTNAME = os.environ.get('RABBIT_PORT_5672_TCP', 'localhost')
+RABBIT_HOSTNAME = os.environ.get('RABBIT_PORT_5672_TCP', 'rabbit')
 
 if RABBIT_HOSTNAME.startswith('tcp://'):
     RABBIT_HOSTNAME = RABBIT_HOSTNAME.split('//')[1]
 
 BROKER_URL = 'amqp://{user}:{password}@{hostname}/{vhost}'.format(
     user=os.environ.get('RABBIT_ENV_USER', 'guest'),
-    password=os.environ.get('RABBIT_ENV_RABBITMQ_PASS', 'guest32'),
+    password=os.environ.get('RABBIT_ENV_RABBITMQ_PASS', 'guest'),
     hostname=RABBIT_HOSTNAME,
     vhost=os.environ.get('RABBIT_ENV_VHOST', ''))
 
@@ -202,7 +209,7 @@ CELERY_TASK_RESULT_EXPIRES = 600
 
 REDIS_PORT = 6379
 REDIS_DB = 0
-REDIS_HOST = os.environ.get('REDIS_PORT_6379_TCP_ADDR', 'localhost')
+REDIS_HOST = os.environ.get('REDIS_PORT_6379_TCP_ADDR', 'redis')
 
 # Set redis as celery result backend
 CELERY_RESULT_BACKEND = 'redis://%s:%d/%d' % (REDIS_HOST, REDIS_PORT, REDIS_DB)
@@ -240,7 +247,10 @@ LOGGING = {
 
 CORS_ORIGIN_ALLOW_ALL = True
 
-NOTIFY_URL = 'http://localhost:8882'
+NOTIFY_URL = "%s:%s" % (os.environ.get('NOTIFY_SERVICE_HOST', 'notify'), os.environ.get('NOTIFY_SERVICE_PORT', '8882'))
+
+JWT_USER_SECRET = os.environ.get('JWT_USER_SECRET', '4b9cba3582ece685857c19e381c99781d9cd44c4')
+JWT_NOTIFY_SECRET = os.environ.get('JWT_NOTIFY_SECRET', '655b747e495a195217241dfcb27eaf5ef8c3e7a4')
 
 if DEBUG:
     import logging
