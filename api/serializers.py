@@ -1,6 +1,11 @@
 from django.contrib.auth.models import User
+from django.db import IntegrityError
 from rest_framework import serializers
 from rest_framework.authtoken.models import Token
+from rest_framework.exceptions import NotAcceptable
+from django.conf import settings
+
+import jwt
 
 from api import models
 from api.models import Order, OrderAttachment, OrderCategory, OrderChat, OrderChatMessage, Tag, OrderTag, \
@@ -18,12 +23,17 @@ class UserSerializer(serializers.ModelSerializer):
 
 class AccountRegisterSerializer(serializers.ModelSerializer):
     token = serializers.SerializerMethodField()
+    jwt = serializers.SerializerMethodField()
 
     def create(self, validated_data):
-        user = User.objects.create(
-            username=validated_data['username'],
-            email=validated_data['email']
-        )
+        try:
+            user = User.objects.create(
+                username=validated_data['username'],
+                email=validated_data['email']
+            )
+        except IntegrityError:
+            raise NotAcceptable(detail={'email': ['Пользователь с таким email уже существует']})
+
         user.set_password(validated_data['password'])
         user.save()
 
@@ -38,10 +48,13 @@ class AccountRegisterSerializer(serializers.ModelSerializer):
         token = Token.objects.get(user=instance.id)
         return token.key
 
+    def get_jwt(self, instance):
+        return jwt.encode({'user_id': instance.id}, settings.JWT_SECRET)
+
     class Meta:
         model = User
         fields = (
-            'email', 'username', 'password', 'token', 'id'
+            'email', 'username', 'password', 'token', 'id', 'jwt'
         )
         extra_kwargs = {
             'password': {'write_only': True, 'required': True},
