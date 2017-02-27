@@ -1,3 +1,4 @@
+import jwt
 from django.shortcuts import get_object_or_404
 from rest_framework import generics
 from rest_framework import permissions
@@ -12,6 +13,7 @@ from rest_framework.authtoken.serializers import AuthTokenSerializer
 from rest_framework.views import APIView
 
 from anon_fl import notify_api
+from anon_fl import settings
 from anon_fl.paginators import EnlargedResultsSetPagination
 from api import models
 from api.permissions import IsSuperUserOrReadOnly, IsOrderChatParticipant, IsOrderOwner
@@ -35,7 +37,9 @@ class AccountLoginView(APIView):
         serializer.is_valid(raise_exception=True)
         user = serializer.validated_data['user']
         token, created = Token.objects.get_or_create(user=user)
+        jwt.encode({'user_id': user.id}, settings.JWT_SECRET)
         return Response({
+            'jwt': '',
             'token': token.key,
             'email': user.email,
             'username': user.username,
