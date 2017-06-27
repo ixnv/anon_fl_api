@@ -14,7 +14,7 @@ $ ./manage.py test
 ```
 ## На русском
 
-Незамудренное RESTful API сервиса биржи фриланса. Написнао для целей изучения django-rest-framework (надстройка над Django для автоматизации рутинного создания views для rest api)
+Незамудренное RESTful API сервиса биржи фриланса. Написнао для целей изучения django-rest-framework
 
 Использовано: django-rest-framework, docker-compose (контейнеры: postgres, nginx, gunicorn, redis, celery), ansible для деплоя, и немного celery (отправка email при регистрации)
 
