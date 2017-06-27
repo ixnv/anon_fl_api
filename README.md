@@ -1,8 +1,8 @@
-# anon_fl_api
+# RESTful API
 
-RESTful backend for freelance service. Made exclusively for learning purposes.
+Simple RESTful API backend of freelance service. Made exclusively for learning purposes and demonstration of skills.
 
-Stack: django-rest-framework, docker-compose (containers: postgres, nginx, gunicorn, redis, celery), ansible for deploying, and little bit of celery (simple registration email sending)
+Stack: django-rest-framework, docker-compose (containers: postgreSQL, nginx, gunicorn, redis, celery), JWT for ISC authentication, ansible for deploying, and little bit of celery (simple registration email sending)
 
 ### Other linked projects:
 
@@ -18,7 +18,7 @@ $ ./manage.py test
 
 Незамудренное RESTful API сервиса биржи фриланса. Написнао для целей изучения django-rest-framework
 
-Использовано: django-rest-framework, docker-compose (контейнеры: postgres, nginx, gunicorn, redis, celery), ansible для деплоя, и немного celery (отправка email при регистрации)
+Использовано: django-rest-framework, docker-compose (контейнеры: postgreSQL, nginx, gunicorn, redis, celery), JWT для авторизации между сервисами, ansible для деплоя, и немного celery (отправка email при регистрации)
 
 ### Связанные проекты:
 
